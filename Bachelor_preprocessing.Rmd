@@ -1,0 +1,1336 @@
+---
+title: "Bachelor - Preprocessing"
+author: "Sofie Rødkjær Blendstrup"
+date: "15/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Packages and working directory
+```{r cars}
+library(tidyverse) 
+library(lme4)
+library(DHARMa) 
+library(jpeg)
+library(grid)
+library(ggpubr)
+library(ggrepel)
+library(kableExtra)
+library(lmerTest)
+library(readxl)
+library(data.table)
+library(optimx)
+
+ggplot2::theme_set(theme_bw())
+
+#set wd
+setwd("~/Til_Kaspers_computer/")
+
+```
+
+##Functions
+
+```{r pressure, echo=FALSE}
+#Add columns of information to the logfile
+Add_Info <- function(df){
+  
+  df$Trial <- seq(1:60)
+  
+  df$actor_gender[grepl("m_",df$video)]='male'
+  df$actor_gender[grepl("f_",df$video)]='female'
+  
+  df$communication_style[grepl("mime",df$video)]='mime'
+  df$communication_style[grepl("talk",df$video)]='talk'
+  df$communication_style[grepl("combi",df$video)]='combined'
+  
+  df$video_direction[grepl("obs",df$video)]='observe'
+  df$video_direction[grepl("dir",df$video)]='direct'
+  
+  df$word[grepl("vink",df$video)]='vink'
+  df$word[grepl("skrael",df$video)]='skrael'
+  df$word[grepl("skriv",df$video)]='skriv'
+  df$word[grepl("vask",df$video)]='vask'
+  df$word[grepl("spil",df$video)]='spil'
+  
+  df$accuracy <- factor(ifelse((df$guess == df$word), '1', '0'))
+  
+  
+  return(df)
+}
+
+#add information and fix stuff in the eye-tracking data
+Add_Info_Eye <- function(df){
+  
+  
+  df$subject[grepl("08.EDF",df$DATA_FILE)]='08'
+  df$subject[grepl("19.EDF",df$DATA_FILE)]='19'
+  #overskrevet df$subject[grepl("23.EDF",df$DATA_FILE)]='23'
+  df$subject[grepl("88.EDF",df$DATA_FILE)]='88'
+  df$subject[grepl("92.EDF",df$DATA_FILE)]='92'
+  df$subject[grepl("24.EDF",df$DATA_FILE)]='24'
+  df$subject[grepl("10.EDF",df$DATA_FILE)]='10'
+  df$subject[grepl("50.EDF",df$DATA_FILE)]='50'
+  df$subject[grepl("53.EDF",df$DATA_FILE)]='53'
+  df$subject[grepl("51.EDF",df$DATA_FILE)]='51'
+  df$subject[grepl("52.EDF",df$DATA_FILE)]='52'
+  df$subject[grepl("56.EDF",df$DATA_FILE)]='56'
+  df$subject[grepl("58.EDF",df$DATA_FILE)]='58'
+  df$subject[grepl("54.EDF",df$DATA_FILE)]='54'
+  
+  df$subject[grepl("63.EDF",df$DATA_FILE)]='63'
+  
+  df$subject[grepl("72.EDF",df$DATA_FILE)]='72'
+  df$subject[grepl("76.EDF",df$DATA_FILE)]='76'
+  df$subject[grepl("75.EDF",df$DATA_FILE)]='75'
+  df$subject[grepl("73.EDF",df$DATA_FILE)]='73'
+  
+  df$subject[grepl("04.EDF",df$DATA_FILE)]='04'
+  df$subject[grepl("11.EDF",df$DATA_FILE)]='11'
+  df$subject[grepl("14.EDF",df$DATA_FILE)]='14'
+  df$subject[grepl("16.EDF",df$DATA_FILE)]='16'
+  
+  df$subject[grepl("20.EDF",df$DATA_FILE)]='20'
+  df$subject[grepl("28.EDF",df$DATA_FILE)]='28'
+  df$subject[grepl("26.EDF",df$DATA_FILE)]='26'
+  df$subject[grepl("23.EDF",df$DATA_FILE)]='23'
+  
+  df$subject[grepl("29.EDF",df$DATA_FILE)]='29'
+  
+  df$subject[grepl("30.EDF",df$DATA_FILE)]='30'
+  df$subject[grepl("33.EDF",df$DATA_FILE)]='33'
+  df$subject[grepl("38.EDF",df$DATA_FILE)]='38'
+  df$subject[grepl("36.EDF",df$DATA_FILE)]='36'
+  df$subject[grepl("31.EDF",df$DATA_FILE)]='31'
+  df$subject[grepl("34.EDF",df$DATA_FILE)]='34'
+  
+  df$subject[grepl("96.EDF",df$DATA_FILE)]='96'
+  df$subject[grepl("99.EDF",df$DATA_FILE)]='99'
+  
+  return(df)
+}
+
+
+```
+
+##Add answers from experiment
+```{r}
+######### PARTICIPANT 08 ###########
+#load participant
+p_08 <- read_csv("logfile_08.csv")
+
+#add guesses
+p_08$guess <- c('vink','spil', 'skrael', 'skrael', 'vink', 'skriv','skrael', 'skriv', 'skriv', 
+                'vink', 'vask','skriv på computer', 'spil', 'skrael', 'vask', 'vink','skriv', 'vask', 'skrael',
+                'skriv','vask','vask', 'skriv', 'vask', 'skrael', 'vask','skriv', 'skræl', 'vask', 
+                'skrael', 'skrael', 'skriv', 'spil', 'vink', 'skriv','vink', 'skrael', 'spil', 'vask', 
+                'vask','spil', 'skrael', 'vink', 'spil', 'spil','skriv', 'vink', 'spil', 'spil', 
+                'skriv','vask', 'vask', 'vink', 'vink', 'spil','skriv', 'skrael', 'vink', 'spil', 'vink')
+
+#add more information
+p_08 <- Add_Info(p_08)
+
+#load Eye-data
+#eye_08 <- read.table("08.csv", sep=";", header = TRUE)
+
+#eye_08$subject <- factor(ifelse((eye_08$DATA_FILE == '08.EDF'), '08', '0'))
+
+#Merge Eye-data and PsychoPy-data
+#p_08_all <- merge(p_08, eye_08, by = c("TRIAL_INDEX", "subject"))
+
+
+############################# PARTICIPANT 19 ##################################
+#load participant
+p_19 <- read_csv("logfile_19.csv")
+
+#add guesses
+p_19$guess <- c('skriv','skriv', 'spil', 'vink', 'vink', 'skrael','skrael', 'vask', 'spil', #1-9
+                'skriv', 'skriv','skrael', 'vink', 'vink', 'vaks', 'vink','skrael', 'vink', 'vask', 
+                'vink','skrael','spil', 'skriv', 'vink', 'spil', 'skriv','vask', 'spil', 'vink', #20-29
+                'vask', 'skrael', 'vask', 'spil', 'skrael', 'skriv','vask', 'vask', 'skriv', 'skrael', #30-39
+                'skriv','spil', 'skriv', 'skral', 'vink', 'spil','vask', 'skrael', 'spil', 'skriv', #40-49
+                'skriv','vink', 'vink', 'vask', 'skrael', 'spil','spil', 'vask', 'spil', 'skrael', 'vask') #50-60
+
+#add more information
+p_19 <- Add_Info(p_19)
+
+
+#################################### PARTICIPANT 23 ###############################
+#load participant
+#p_23 <- read_csv("logfile_23.csv")
+
+#add guesses
+#p_23$guess <- c('spis','spil', 'vask', 'vask', 'vink', 'lave notat','pas', 'vask', 'vink', #1-9
+#                'vink', 'skriv','lave notat', 'vink', 'vask', 'vask', 'spil','skriv', 'vask', 'skrael', 
+#                'skriv','skrael','vask', 'spil', 'skrael', 'vink', 'skriv','skriv', 'skrael', 'spil', #20-29
+#                'spil', 'skrael', 'skriv', 'vink', 'vink', 'vink','skrael', 'skriv', 'spil', 'vink', #30-39
+#                'vink','vask', 'vink', 'skriv', 'spil', 'spil','skrael', 'skrael', 'skrael', 'skrael', #40-49
+#                'vask','spil', 'spil', 'vask', 'skrael', 'spil','vask', 'vask', 'skriv', 'vink', 'skriv') #50-60
+
+#add more information
+#p_23 <- Add_Info(p_23)
+
+
+
+############################################### PARTICIPANT 88 ################################
+#load participant
+p_88 <- read_csv("logfile_88.csv")
+
+#add guesses
+p_88$guess <- c('vask','skriv', 'vask', 'spil', 'spis', 'vask','vask', 'vask', 'skrael', #1-9
+                'vink', 'vink','vink', 'skriv', 'vink', 'vask', 'skrael','spil', 'skriv', 'skriv', 
+                'skriv','skrael','vask', 'skriv', 'skrael', 'spil', 'vask','vask', 'vink', 'vask', #20-29
+                'vink', 'spil', 'spil', 'spil', 'spil', 'vink','spil', 'vink', 'vask', 'skrael', #30-39
+                'skriv','vink', 'skrael', 'spil', 'spil', 'skrael','skrael', 'spil', 'spil', 'skrael', #40-49
+                'vink','vink', 'skrael', 'skriv', 'skriv', 'vink','vask', 'skriv', 'skrael', 'skriv', 'skriv') #50-60
+
+#add more information
+p_88 <- Add_Info(p_88)
+
+
+
+########## PARTICIPANT 92 ##########
+#load participant
+p_92 <- read_csv("logfile_92.csv")
+
+#add guesses
+p_92$guess <- c('skriv','spil', 'skriv', 'spil', 'vink', 'skriv','skriv', 'vask', 'skriv', #1-9
+                'vask', 'vink','skrael', 'vink', 'skriv', 'vink', 'vask','skrael', 'vink', 'skriv', 
+                'vink','vask','vink', 'vask', 'spil', 'skriv', 'skriv','vask', 'vask', 'vask', #20-29
+                'spil', 'skrael', 'spil', 'spil', 'skrael', 'spil','skrael', 'skrael', 'vink', 'skrael', #30-39
+                'vask','vask', 'spil', 'vink', 'vink', 'spil','skriv', 'skriv', 'skrael', 'skrael', #40-49
+                'vask','skrael', 'skrael', 'spil', 'vink', 'vink','skriv', 'skrael', 'spil', 'spil', 'vask') #50-60
+
+#add more information
+p_92 <- Add_Info(p_92)
+
+
+
+
+##################################### PARTICIPANT 24 ###################################
+#load participant
+p_24 <- read_csv("logfile_24.csv")
+
+#add guesses
+p_24$guess <- c('spis','spil', 'vink', 'vask', 'spil', 'spil','vink', 'spil', 'vink', #1-9
+                'vink', 'skriv','spil', 'spil', 'skrael', 'vink', 'spil','spil', 'skriv', 'vask', 
+                'vink','skriv','vask', 'vink', 'vask', 'spil', 'spil','spil', 'skrael', 'skriv', #20-29
+                'skrael', 'skrael', 'skriv', 'skrael', 'vask', 'vink','skriv', 'vask', 'skriv', 'vask', #30-39
+                'skrael','skrael', 'skrael', 'skriv', 'vask', 'vask','vask', 'skrael', 'skriv', 'skriv', #40-49
+                'vink','spil', 'skrael', 'vink', 'vink', 'skriv','skrael', 'vask', 'vink', 'vask', 'skriv') #50-60
+
+#add more information
+p_24 <- Add_Info(p_24)
+
+
+
+
+############################## PARTICIPANT  10 ##############################
+#load participant
+p_10 <- read_csv("logfile_10.csv")
+
+#add guesses
+p_10$guess <- c('vink','spil', 'spil', 'skrael', 'vask', 'vask','spil', 'vink', 'vink', #1-9
+                'skriv', 'vink','skrael', 'skrael', 'skriv', 'vask', 'spil','skriv', 'spil', 'spil', 
+                'spil','vask','skriv', 'skriv', 'vask', 'spil', 'vask','spil', 'vask', 'skrael', #20-29
+                'skriv', 'skriv', 'skrael', 'skrael', 'skriv', 'skrael','skriv', 'vask', 'vink', 'vink', #30-39
+                'vink','skrael', 'spil', 'vink', 'spil', 'vink','skriv', 'skriv', 'vink', 'skrael', #40-49
+                'vink','skriv', 'vask', 'spil', 'vask', 'vask','skrael', 'skrael', 'vink', 'vask', 'skrael') #50-60
+
+#add more information
+p_10 <- Add_Info(p_10)
+
+
+
+
+
+
+############################## PARTICIPANT 50 ##############################
+#load participant
+p_50 <- read_csv("logfile_50.csv")
+
+#add guesses
+p_50$guess <- c('vask','skriv', 'spis', 'taste', 'vink', 'spil','vask', 'vask', 'skriv', #1-9
+                'skriv', 'spil','skriv', 'vink', 'skrael', 'skriv', 'spil','skrael', 'vink', 'skrael', 
+                'vask','skrael','skrael', 'skriv', 'skriv', 'spil', 'spil','skrael', 'vink', 'spil', #20-29
+                'skriv', 'vink', 'skrael', 'skrael', 'vink', 'skriv','vask', 'vink', 'spil', 'spil', #30-39
+                'spil','spil', 'skrael', 'skrael', 'vink', 'vink','vask', 'vask', 'skriv', 'vink', #40-49
+                'vask','vask', 'skrael', 'skriv', 'skriv', 'vask','vask', 'vink', 'vink', 'vask', 'spil') #50-60
+
+#add more information
+p_50 <- Add_Info(p_50)
+
+
+
+
+
+############################## PARTICIPANT 53 ##############################
+#load participant
+p_53 <- read_csv("logfile_53.csv")
+
+#add guesses
+p_53$guess <- c('skriv','vink', 'vink', 'skrael', 'vink', 'vask','vask', 'skrael', 'skrael', #1-9
+                'vask', 'skriv på computer','skrael', 'skrael', 'skriv', 'vink', 'vink','vink', 'vink', 'vask', 
+                'vask','vink','skrael', 'vink', 'taste', 'skrael', 'skriv','skrael', 'vask', 'vask', #20-29
+                'skrael', 'skriv', 'spil', 'tast', 'spil', 'skrael','skriv', 'spil', 'vask', 'vink', #30-39
+                'vask','skriv', 'vink', 'skriv', 'vask', 'vink','skriv', 'skriv', 'vask', 'skriv', #40-49
+                'skriv','spil', 'spil', 'vask', 'spil', 'skriv','skrael', 'spil', 'spil', 'spil', 'skrael') #50-60
+
+#add more information
+p_53 <- Add_Info(p_53)
+
+
+
+
+
+############################## PARTICIPANT 51 ##############################
+#load participant
+p_51 <- read_csv("logfile_51.csv")
+
+#add guesses
+p_51$guess <- c('skriv','vask', 'vask', 'skrael', 'skrael', 'vink','skriv', 'vink', 'skriv på computer', #1-9
+                'vask', 'skriv','skrael', 'skrael', 'skriv', 'spil', 'skriv','skrael', 'vask', 'vink', 
+                'spil','vask','vask', 'skriv', 'vink', 'skrael', 'skriv','spil', 'skriv', 'skriv', #20-29
+                'spil', 'spil', 'skrael', 'vink', 'vask', 'vask','skrael', 'vink', 'skriv', 'skael', #30-39
+                'vink','vink', 'skrael', 'vask', 'vink', 'skriv','vask', 'skrael', 'spil', 'spil', #40-49
+                'spil','spil', 'vask', 'skriv', 'vink', 'vask','vink', 'spil', 'skrael', 'vink', 'spil') #50-60
+
+#add more information
+p_51 <- Add_Info(p_51)
+
+
+
+
+
+############################## PARTICIPANT  56 ##############################
+#load participant
+p_56 <- read_csv("logfile_56.csv")
+
+#add guesses
+p_56$guess <- c('afsprit','formidling', 'spis', 'gøre klar', 'vaske', 'spil','vink', 'skriv', 'vask', #1-9
+                'vink', 'vask','skriv', 'skriv', 'vask', 'skrael', 'skriv','spil', 'gøre klar', 'spil', 
+                'vink','vask','spil', 'spil', 'vink', 'vask', 'skriv','vask', 'skriv', 'skriv', #20-29
+                'vask', 'skrael', 'vink', 'vink', 'vink', 'vink','spil', 'skriv', 'vink', #30-39
+                'skrael','spil', 'skrael', 'skriv', 'skrael', 'spil','skrael', 'vask', 'spil', 'skrael', #40-49
+                'vink','skriv', 'spil', 'vask', 'spil', 'skriv','skrael', 'skrael', 'vink', 'vink', 'spil', 'vask') #50-60
+
+#add more information
+p_56 <- Add_Info(p_56)
+
+
+
+
+
+############################## PARTICIPANT 52 ##############################
+#load participant
+p_52 <- read_csv("logfile_52.csv")
+
+#add guesses
+p_52$guess <- c('spis','spis', 'spis', 'tast', 'spis', 'skriv','spil', 'spil', 'skriv', #1-9
+                'vask', 'skriv','skriv', 'vask', 'spil', 'vask', 'skriv','spis', 'vask', 'skriv', 
+                'spil','spis','vink', 'spis', 'skriv', 'spis', 'spil','spis', 'vink', 'vink', #20-29
+                'vask', 'vink', 'vink', 'spil', 'skriv', 'spil','skriv', 'spil', 'vink', 'vask', #30-39
+                'vask','vask', 'spis', 'vask', 'skriv', 'spis','vink', 'vink', 'skriv', 'vask', #40-49
+                'skrael','vink', 'vink', 'skriv', 'vink', 'vink','skrael', 'vask', 'vask', 'spil', 'spil') #50-60
+
+#add more information
+p_52 <- Add_Info(p_52)
+
+
+
+
+
+############################## PARTICIPANT 58 ##############################
+#load participant
+p_58 <- read_csv("logfile_58.csv")
+
+#add guesses
+p_58$guess <- c('spis','vask', 'skriv', 'vask', 'spis', 'spis','spis', 'skriv', 'vask', #1-9
+                'skriv', 'skriv','spil', 'spil', 'vink', 'vask', 'spil','skriv', 'vask', 'vask', 
+                'skriv','spil','skriv', 'vink', 'spis', 'vask', 'vink','spil', 'spil', 'vink', #20-29
+                'spil', 'vask', 'spis', 'spis', 'spil', 'vink','vink', 'skriv', 'skriv', 'spis', #30-39
+                'vink','skriv', 'spil', 'vink', 'vink', 'spil','vask', 'skrael', 'vink', 'spil', #40-49
+                'vask','vink', 'skriv', 'skrael', 'skriv', 'vask','skrael', 'spil', 'vink', 'vask', 'skrael') #50-60
+
+#add more information
+p_58 <- Add_Info(p_58)
+
+
+
+
+
+
+############################## PARTICIPANT 54 ##############################
+#load participant
+p_54 <- read_csv("logfile_54.csv")
+
+#add guesses
+p_54$guess <- c('vink','spil', 'skriv', 'skrael', 'skriv', 'vask','skrael', 'spil', 'spil', #1-9
+                'skriv', 'skriv','skriv', 'skrael', 'spil', 'spil', 'spil','skriv', 'vask', 'vask', 
+                'skrael','skriv','skriv', 'vask', 'hils', 'vask', 'vask','vink', 'vink', 'vask', #20-29
+                'vask', 'skriv', 'spil', 'skrael', 'vink', 'vink','vask', 'vask', 'spil', 'vink', #30-39
+                'vink','skriv', 'skrael', 'spil', 'spil', 'skrael','vink', 'skriv', 'skrael', 'skriv', #40-49
+                'skrael','skrael', 'vink', 'skrael', 'spil', 'vask','spil', 'skrael', 'vink', 'vink', 'vask') #50-60
+
+#add more information
+p_54 <- Add_Info(p_54)
+
+
+
+
+
+############################## PARTICIPANT 63 ##############################
+#load participant
+p_63 <- read_csv("logfile_63.csv")
+
+#add guesses
+p_63$guess <- c('spil','vink', 'vask', 'vink', 'spil', 'vink','vink', 'skriv', 'vask', #1-9
+                'skrael', 'vink','skriv', 'vink', 'vask', 'vask', 'skriv','vask', 'spil', 'vink', #10-19
+                'vask','vink','skriv', 'skriv', 'vask', 'skriv', 'spil','vink', 'skrael', 'spil', #20-29
+                'spil', 'skrael', 'spil', 'spil', 'vask', 'vask','skrael', 'skriv', 'skrael', 'vask', #30-39
+                'vask','spil', 'skriv', 'vink', 'vink', 'skrael','skriv', 'skrael', 'skrael', 'skrael', #40-49
+                'spil','skrael', 'skriv', 'skrael', 'skriv', 'vink','skrael', 'spil', 'spil', 'skriv', 'vask') #50-60
+
+#add more information
+p_63 <- Add_Info(p_63)
+
+
+
+
+
+
+############################## PARTICIPANT 72 ##############################
+#load participant
+p_72 <- read_csv("logfile_72.csv")
+
+#add guesses
+p_72$guess <- c('spil','skrael', 'skrael', 'vask', 'spil', 'skrael','vink', 'vink', 'skrael', #1-9
+                'skriv', 'spil','spil', 'skriv', 'skrael', 'vink', 'vask','skrael', 'skriv', 'spil', 
+                'vink','vask','vink', 'vask', 'vask', 'spil', 'spil','vask', 'skriv', 'vink', #20-29
+                'skrael', 'skriv', 'spil', 'vask', 'skriv', 'skriv','vink', 'skrael', 'skrael', 'vink', #30-39
+                'vink','skrael', 'vask', 'skriv', 'vink', 'spil','skriv', 'vink', 'vink', 'skriv', #40-49
+                'spil','vask', 'spil', 'vask', 'vask', 'spil','skriv', 'skrael', 'skriv', 'skrael', 'vask') #50-60
+
+#add more information
+p_72 <- Add_Info(p_72)
+
+
+
+
+
+
+############################## PARTICIPANT 76 ##############################
+#load participant
+p_76 <- read_csv("logfile_76.csv")
+
+#add guesses
+p_76$guess <- c('skriv','skrael', 'vink', 'spil', 'skriv', 'vask','vask', 'vink', 'skrael', #1-9
+                'skrael', 'skrael','vask', 'vink', 'vink', 'skriv', 'vink','skriv', 'skriv', 'vask', 
+                'vask','spil','vask', 'skriv', 'vask', 'spil', 'skrael','vink', 'skrael', 'skrael', #20-29
+                'spil', 'spil', 'spil', 'vink', 'vink', 'skrael','vink', 'skrael', 'vink', 'vask', #30-39
+                'skriv','spil', 'skrael', 'skrael', 'skriv', 'vink','vask', 'skriv', 'spil', 'spil', #40-49
+                'spil','skriv', 'vask', 'skriv', 'spil', 'skriv','vask', 'vask', 'spil', 'vink', 'skrael') #50-60
+
+#add more information
+p_76 <- Add_Info(p_76)
+
+
+
+
+
+############################## PARTICIPANT 75 ##############################
+#load participant
+p_75 <- read_csv("logfile_75.csv")
+
+#add guesses
+p_75$guess <- c('spis','vink', 'spis', 'vink', 'vink', 'spil','vink', 'vink', 'spil', #1-9
+                'spil', 'spil','spis', 'spis', 'vink', 'spil', 'skriv','vask', 'vink', 
+                'spil','skrael','vink', 'skriv', 'skriv', 'skriv', 'skriv','vink', 'skriv', 'spis', #20-29
+                'spis', 'vask', 'vask', 'skriv', 'skriv', 'skriv','vink', 'vask', 'spis', 'spil', #30-39
+                'vink','vask', 'vask', 'vask', 'spil', 'spil','spil', 'vask', 'spis', 'vask', #40-49
+                'vask','spis', 'vask', 'spil', 'spil', 'spis','spis', 'vask', 'skriv', 'skriv', 'vink', 'skriv') #50-60
+
+#add more information
+p_75 <- Add_Info(p_75)
+
+
+
+
+
+############################## PARTICIPANT 73 ##############################
+#load participant
+p_73 <- read_csv("logfile_73.csv")
+
+#add guesses
+p_73$guess <- c('vask','vask', 'vink', 'spil', 'vask', 'spil','vink', 'skrael', 'spil', #1-9
+                'skrael', 'skriv','skriv', 'vink', 'skriv', 'skriv', 'skrael','vask', 'skriv', 'skrael', 
+                'vask','skriv','skrael', 'spil', 'spil', 'vink', 'vink','skrael', 'vink', 'spil', #20-29
+                'vink', 'spil', 'vask', 'vask', 'vink', 'vink','skrael', 'skrael', 'skrael', 'spil', #30-39
+                'vask','spil', 'vask', 'vink', 'skriv', 'vink','vask', 'spil', 'spil', 'skriv', #40-49
+                'skriv','skrael', 'spil', 'skriv', 'skrael', 'vask','skrael', 'skriv', 'vask', 'vink', 'skriv') #50-60
+
+#add more information
+p_73 <- Add_Info(p_73)
+
+
+
+
+
+############################## PARTICIPANT 04 ##############################
+#load participant
+p_04 <- read_csv("logfile_04.csv")
+
+#add guesses
+p_04$guess <- c('vask','skriv', 'vask', 'skriv', 'skriv', 'spil','skriv', 'skrael', 'skrael', #1-9
+                'skriv', 'spil','spil', 'vask', 'vink', 'vink', 'skrael','spil', 'vask', 'vink', 
+                'vink','skriv','skriv', 'skrael', 'skrael', 'spil', 'vask','vask', 'skrael', 'skriv', #20-29
+                'vink', 'spil', 'skrael', 'spil', 'spil', 'skriv','skriv', 'vink', 'vink', 'vink', #30-39
+                'skrael','skrael', 'vask', 'skrael', 'spil', 'vink','vask', 'vask', 'skriv', 'spil', #40-49
+                'vink','vask', 'skrael', 'vink', 'vink', 'vask','spil', 'vask', 'skrael', 'spil', 'skriv') #50-60
+
+#add more information
+p_04 <- Add_Info(p_04)
+
+
+
+
+
+############################## PARTICIPANT 11 ##############################
+#load participant
+p_11 <- read_csv("logfile_11.csv")
+
+#add guesses
+p_11$guess <- c('skriv','skriv', 'skriv', 'skriv', 'vink', 'vask','vink', 'vask', 'vink', #1-9
+                'skrael', 'vask','skriv', 'skriv', 'skrael', 'skriv', 'vink','vink', 'spil', 'spil', 
+                'vask','skriv','skriv', 'vink', 'vask', 'skrael', 'skriv','skriv', 'skrael', 'skrael', #20-29
+                'vink', 'vask', 'vask', 'spil', 'vink', 'skrael','skrael', 'skrael', 'vink', 'spil', #30-39
+                'vask','skrael', 'vink', 'skriv', 'spil', 'spil','skrael', 'spil', 'vask', 'vink', #40-49
+                'skriv','vask', 'spil', 'spil', 'skrael', 'vask','skrael', 'spil', 'vink', 'vask', 'spil') #50-60
+
+#add more information
+p_11 <- Add_Info(p_11)
+
+
+
+
+############################## PARTICIPANT  14 ##############################
+#load participant
+p_14 <- read_csv("logfile_14.csv")
+
+#add guesses
+p_14$guess <- c('skrael','skriv', 'skriv', 'skriv', 'vink', 'skriv','skriv', 'skriv', 'spil', #1-9
+                'spil', 'vask','skriv', 'spil', 'vask', 'skrael', 'spil','vask', 'skrael', 'vask', 
+                'skriv','skriv','vink', 'skrael', 'vask', 'vask', 'skrael','vink', 'vask', 'vink', #20-29
+                'spil', 'spil', 'spil', 'vink', 'skriv', 'skrael','vink', 'spil', 'vask', 'spil', #30-39
+                'skrael','skriv', 'vask', 'skrael', 'spil', 'vask','vink', 'vink', 'skrael', 'vink', #40-49
+                'vask','skriv', 'skrael', 'vask', 'skrael', 'skrael','spil', 'vink', 'vink', 'vink', 'skriv') #50-60
+
+#add more information
+p_14 <- Add_Info(p_14)
+
+
+
+
+############################## PARTICIPANT 16 ##############################
+#load participant
+p_16 <- read_csv("logfile_16.csv")
+
+#add guesses
+p_16$guess <- c('spil','spis', 'vink', 'spil', 'skriv', 'bade','vask', 'spil', 'spil', #1-9
+                'skriv', 'vink','vask', 'vink', 'skriv', 'vask', 'vask','vink', 'skriv', 
+                'vink','skrael','spil', 'spil', 'skrael', 'spil', 'skriv','skriv', 'skriv', 'vask', #20-29
+                'vask', 'spil', 'spil', 'skriv', 'skriv', 'skrael','vask', 'skrael', 'skrael', 'skrael', #30-39
+                'vink','vink', 'vask', 'spil', 'skrael', 'spil','vask', 'vask', 'vink', 'vask', #40-49
+                'vink','skriv', 'skriv', 'skriv', 'skrael', 'spil','vink', 'skrael', 'vink', 'vink', 'skrael', 'skrael') #50-60
+
+#add more information
+p_16 <- Add_Info(p_16)
+
+
+
+
+############################## PARTICIPANT 20 ##############################
+#load participant
+p_20 <- read_csv("logfile_20.csv")
+
+#add guesses
+p_20$guess <- c('vask','skriv', 'spil', 'spil', 'spis', 'skriv','skriv', 'vask', 'vask', #1-9
+                'vink', 'vask','vink', 'skrael', 'skriv', 'skrael', 'spil','skriv', 'vask', 'vink', 
+                'skrael','vask','skrael', 'vink', 'spil', 'spil', 'vink','skriv', 'skrael', 'vask', #20-29
+                'skrael', 'vink', 'spil', 'skrael', 'vink', 'vask','spil', 'vask', 'skriv', 'skriv', #30-39
+                'skriv','skrael', 'vink', 'spil', 'vask', 'skriv','vink', 'skriv', 'vink', 'spil', #40-49
+                'spil','vask', 'spil', 'vink', 'skrael', 'vask','vink', 'skrael', 'spil', 'skrael', 'skriv') #50-60
+
+#add more information
+p_20 <- Add_Info(p_20)
+
+
+
+############################## PARTICIPANT  28 ##############################
+#load participant
+p_28 <- read_csv("logfile_28.csv")
+
+#add guesses
+p_28$guess <- c('vask','vask', 'spil', 'skrael', 'sprit', 'skriv','skriv', 'skriv', 'vink', #1-9
+                'skriv', 'skriv','skriv', 'skriv', 'vink', 'vink', 'vink','vink', 'vask', 'spil', 
+                'spil','skriv','vink', 'vink', 'vink', 'skrael', 'vask','vink', 'skrael', 'vink', #20-29
+                'skrael', 'skrael', 'spil', 'spil', 'spil', 'vask', 'skriv', 'vask', 'spil', #30-39
+                'skriv','skriv', 'spil', 'skrael', 'skrael', 'skriv','spil', 'vask', 'skrael', 'spil', #40-49
+                'skrael','spil', 'skrael', 'vask', 'vink', 'vink','vask', 'skrael', 'spil', 'vask', 'skrael', 'vask') #50-60
+
+#add more information
+p_28 <- Add_Info(p_28)
+
+
+
+
+############################## PARTICIPANT 26 ##############################
+#load participant
+p_26 <- read_csv("logfile_26.csv")
+
+#add guesses
+p_26$guess <- c('skriv','spil', 'spil', 'skriv', 'vask', 'vask','vask', 'vask', 'skriv', #1-9
+                'skriv', 'spil','skriv', 'vink', 'spil', 'pluk', 'vink','skrael', 'vink', 'spil', 
+                'skrael','vask','skrael', 'vink', 'skrael', 'vask', 'vink','spil', 'vask', 'vask', #20-29
+                'spil', 'vink', 'vink', 'skrael', 'vask', 'vink','skriv', 'skriv', 'skriv', 'vink', #30-39
+                'spil','vink', 'spil', 'vask', 'skrael', 'vink','vask', 'vink', 'spil', 'skrael', #40-49
+                'skrael','skrael', 'vask', 'skriv', 'skrael', 'spil','skriv', 'skriv', 'skrael', 'spil', 'skriv') #50-60
+
+#add more information
+p_26 <- Add_Info(p_26)
+
+
+
+
+############################## PARTICIPANT 29 ##############################
+#load participant
+p_23 <- read_csv("logfile_23.csv")
+
+#add guesses
+p_23$guess <- c('spil','skriv', 'skrael', 'skriv', 'vink', 'spil','forbered', 'vink', 'forbered', #1-9
+                'vink', 'skrael','spil', 'spil', 'skrael', 'skriv', 'vink','vask', 'skrael', 'spil', 
+                'vask','spil','vink', 'skrael', 'spil', 'skriv', 'vink','vask', 'vask', 'vink', #20-29
+                'spil', 'skriv', 'skrael', 'vask', 'skrael', 'vink','vink', 'vask', 'skriv', 'vask', #30-39
+                'skriv','vink', 'vask', 'skrael', 'skriv', 'spil','vask', 'vask', 'spil', 'skriv', #40-49
+                'skrael','vink', 'spil', 'spil', 'skrael', 'skriv','vink', 'skriv', 'skriv', 'vask', 'vask') #50-60
+
+#add more information
+p_23 <- Add_Info(p_23)
+
+
+
+
+############################## PARTICIPANT 29 ##############################
+#load participant
+p_29 <- read_csv("logfile_29.csv")
+
+#add guesses
+p_29$guess <- c('skriv','skriv', 'skriv', 'hils', 'vink', 'vask','skrael', 'vask', 'vink', #1-9
+                'skrael', 'vink','skriv', 'skriv', 'skrael', 'vink', 'skriv','skriv', 'spil', 'skriv', 
+                'vask','skriv','vask', 'vink', 'spil', 'vask', 'skrael','skrael', 'vink', 'skriv', #20-29
+                'skrael', 'skrael', 'skrael', 'vask', 'spil', 'spil','vink', 'skriv', 'vink', 'skrael', #30-39
+                'skriv','vask', 'spil', 'vask', 'spil', 'vink','vask', 'vink', 'skrael', 'spil', #40-49
+                'skriv','skrael', 'spil', 'spil', 'vask', 'vink','spil', 'skrael', 'spil', 'vask', 'vask') #50-60
+
+#add more information
+p_29 <- Add_Info(p_29)
+
+
+
+
+############################## PARTICIPANT 30 ##############################
+#load participant
+p_30 <- read_csv("logfile_30.csv")
+
+#add guesses
+p_30$guess <- c('vask','spil', 'skrael', 'vask', 'skriv', 'skrael','vask', 'vask', 'skrael', #1-9
+                'skriv', 'spil','skrael', 'skrael', 'skrael', 'spil', 'vink','skriv', 'skriv', 'skrael', 
+                'skriv','vask','spil', 'spil', 'skriv', 'spil', 'spil','vask', 'spil', 'vink', #20-29
+                'vask', 'skrael', 'vink', 'vink', 'vink', 'skrael','vink', 'vask', 'vask', 'skriv', #30-39
+                'skrael','vink', 'skriv', 'spil', 'skrael', 'vink','vask', 'skriv', 'vask', 'vink', #40-49
+                'skriv','vask', 'skriv', 'skrael', 'vink', 'spil','vink', 'vink', 'skriv', 'spil', 'spil') #50-60
+
+#add more information
+p_30 <- Add_Info(p_30)
+
+
+
+
+############################## PARTICIPANT 33 ##############################
+#load participant
+p_33 <- read_csv("logfile_33.csv")
+
+#add guesses
+p_33$guess <- c('skriv','vask', 'skriv', 'skrael', 'skrael', 'skrael','vask', 'vask', 'vink', #1-9
+                'skriv', 'skriv','skrael', 'vink', 'spil', 'vask', 'spil','vink', 'spil', 'vink', 
+                'vink','vink','vask', 'skriv', 'skrael', 'skriv', 'skriv','vink', 'spil', 'spil', #20-29
+                'spil', 'skriv', 'spil', 'spil', 'vink', 'skrael','skriv', 'vink', 'vink', 'vask', #30-39
+                'vink','skriv', 'vask', 'spil', 'vask', 'vask','vask', 'vask', 'skrael', 'skrael', #40-49
+                'skrael','skrael', 'skrael', 'spil', 'vask', 'spil','spil', 'skriv', 'skriv', 'vink', 'skrael') #50-60
+
+#add more information
+p_33 <- Add_Info(p_33)
+
+
+
+
+############################## PARTICIPANT 38 ##############################
+#load participant
+p_38 <- read_csv("logfile_38.csv")
+
+#add guesses
+p_38$guess <- c('spil','spis', 'sprit', 'skriv', 'spil', 'skrael','spil', 'skriv', 'vink', #1-9
+                'spis', 'vask','vink', 'vink', 'skrael', 'vask', 'skriv','skrael', 'spil', 'spil', 
+                'skriv','skrael','skriv', 'skriv', 'vask', 'spil', 'skrael','skrael', 'spil', 'skriv', #20-29
+                'vink', 'skriv', 'skriv', 'vask', 'vink', 'spil','skrael', 'vink', 'vask', 'skrael', #30-39
+                'vask','vask', 'vask', 'spil', 'vink', 'vask','spil', 'vink', 'spil', 'skrael', #40-49
+                'skriv','vink', 'spil', 'vink', 'skrael', 'skriv','vink', 'skriv', 'vask', 'vask', 'vink') #50-60
+
+#add more information
+p_38 <- Add_Info(p_38)
+
+
+
+
+############################## PARTICIPANT 36 ##############################
+#load participant
+p_36 <- read_csv("logfile_36.csv")
+
+#add guesses
+p_36$guess <- c('skrael','vink', 'spil', 'vask', 'spis', 'spis','spis', 'skriv', 'skriv', #1-9
+                'vask', 'spil','skriv', 'skrael', 'vink', 'vask', 'skriv','spil', 'spis', 'vask', 
+                'skriv','vink','vask', 'vink', 'spil', 'skrael', 'skriv','skrael', 'vask', 'vink', #20-29
+                'spil', 'vink', 'skriv', 'vink', 'spil', 'vask','spil', 'vask', 'skrael', 'spil', #30-39
+                'skriv','skriv', 'skriv', 'spil', 'skriv', 'spis','vink', 'spis', 'vink', 'spil', #40-49
+                'vask','vask', 'vink', 'vask', 'vink', 'spil','vink', 'skriv', 'spil', 'spis', 'vask') #50-60
+
+#add more information
+p_36 <- Add_Info(p_36)
+
+
+
+
+############################## PARTICIPANT 31 ##############################
+#load participant
+p_31 <- read_csv("logfile_31.csv")
+
+#add guesses
+p_31$guess <- c('pas','skriv', 'vask', 'spil', 'skriv', 'spil','vask', 'skrael', 'vask', #1-9
+                'vink', 'vask','skriv', 'skrael', 'skriv', 'skrael', 'skriv','skriv', 'vask', 'skriv', 
+                'vink','skrael','skrael', 'vask', 'vink', 'vink', 'skriv','skrael', 'spil', 'vask', #20-29
+                'skrael', 'vink', 'skriv', 'vink', 'vink', 'spil','vink', 'skrael', 'vask', 'spil', #30-39
+                'skrael','skriv', 'skrael', 'spil', 'vink', 'skrael','skriv', 'skriv', 'vink', 'vask', #40-49
+                'vask','spil', 'vask', 'spil', 'vask', 'vink','skriv', 'vink', 'spil', 'skrael', 'skriv') #50-60
+
+#add more information
+p_31 <- Add_Info(p_31)
+
+
+
+
+############################## PARTICIPANT 34 ##############################
+#load participant
+p_34 <- read_csv("logfile_34.csv")
+
+#add guesses
+p_34$guess <- c('vask','spil', 'skriv', 'vask', 'vask', 'vink','spis', 'vask', 'vask', #1-9
+                'skriv', 'skrael','vink', 'vask', 'spil', 'skrael', 'skriv','spil', 'skrael', 'vink', 
+                'spil','vask','skriv', 'vink', 'spil', 'vask', 'skrael','skrael', 'vink', 'skrael', #20-29
+                'skrael', 'spil', 'skriv', 'vask', 'spil', 'skrael','vask', 'skriv', 'vink', 'vink', #30-39
+                'skriv','skrael', 'skriv', 'skriv', 'skriv', 'spil','vink', 'vink', 'vask', 'skrael', #40-49
+                'skrael','vask', 'spil', 'vink', 'skriv', 'spil','skriv', 'spil', 'spil', 'vink', 'vink') #50-60
+
+#add more information
+p_34 <- Add_Info(p_34)
+
+
+
+
+############################## PARTICIPANT 96 ##############################
+#load participant
+p_96 <- read_csv("logfile_96.csv")
+
+#add guesses
+p_96$guess <- c('spil','vink', 'vink', 'vink', 'skriv', 'skriv','vink', 'sprit', 'skrael', #1-9
+                'spil', 'skrael','skriv', 'skriv', 'skrael', 'spil', 'skrael','skrael', 'vask', 'spil', 
+                'skriv','skrael','skriv', 'vink', 'skriv', 'vask', 'skrael','skrael', 'vask', 'spil', #20-29
+                'spil', 'vink', 'vink', 'vask', 'spil', 'skrael','skriv', 'vink', 'vask', 'skrael', #30-39
+                'vask','spil', 'vink', 'skriv', 'vask', 'skriv','skrael', 'skrael', 'vask', 'vask', #40-49
+                'vink','spil', 'skriv', 'vask', 'spil', 'spil','vink', 'skriv', 'spil', 'vask', 'vink') #50-60
+
+#add more information
+p_96 <- Add_Info(p_96)
+
+
+
+
+############################## PARTICIPANT 99 ##############################
+#load participant
+p_99 <- read_csv("logfile_99.csv")
+
+#add guesses
+p_99$guess <- c('vask','vink', 'spil', 'skrael', 'skrael', 'vask','spil', 'vask', 'spil', #1-9
+                'skriv', 'skrael','skriv', 'vink', 'vink', 'skrael', 'vink','skrael', 'vask', 'vink', 
+                'spil','skrael','vask', 'skriv', 'skriv', 'vask', 'skrael','skriv', 'skrael', 'skriv', #20-29
+                'vask', 'vink', 'vask', 'vink', 'skrael', 'vink','skriv', 'spil', 'spil', 'spil', #30-39
+                'vink','skriv', 'vask', 'skriv', 'spil', 'spil','vink', 'skriv', 'skrael', 'vink', #40-49
+                'skrael','skriv', 'vask', 'vask', 'spil', 'skrael','spil', 'vask', 'skriv', 'spil', 'vink') #50-60
+
+#add more information
+p_99 <- Add_Info(p_99)
+
+
+
+```
+
+##Merge all participants
+```{r}
+participants <- rbind(p_08, p_08, p_19, p_88, p_92, p_24, p_10, p_50, p_53, p_51, p_52, p_56, p_58, p_54,
+              p_63, p_72, p_76, p_75, p_73, p_04, p_11, p_14, p_16, p_20, p_28, p_26, p_23, p_29,
+              p_30, p_33, p_38, p_36, p_31, p_34, p_96, p_99)
+
+```
+
+
+
+##Load eye-tracking data
+```{r}
+#load data
+Raw_Samples <- read_delim("Raw_Samples.csv", 
+                          delim = "\t", 
+                          na = ".",
+                          col_types = cols_only(
+                          RECORDING_SESSION_LABEL = col_character(),
+                          TRIAL_INDEX = col_character(),
+                          TIMESTAMP = col_number(),
+                          LEFT_GAZE_X = col_number(),
+                          LEFT_GAZE_Y = col_number(),
+                          RIGHT_GAZE_X = col_number(),
+                          RIGHT_GAZE_Y = col_number(),
+                          LEFT_PUPIL_SIZE = col_number(),
+                          RIGHT_PUPIL_SIZE = col_number())
+                          ) %>% 
+  mutate(subject = RECORDING_SESSION_LABEL)
+
+str(Raw_Samples) ## everything looks good
+Raw_Fixations <- read_xlsx("Raw_Fixations1.xlsx")
+Raw_Saccades <- read_xlsx("Raw_Saccades.xlsx")
+
+Raw_Samples <- Add_Info_Eye(Raw_Samples)
+Raw_Fixations <- Add_Info_Eye(Raw_Fixations)
+Raw_Saccades <- Add_Info_Eye(Raw_Saccades)
+
+
+#Choose the columns I need
+Samples <- Raw_Samples %>% 
+  select(
+    ParticipantID=RECORDING_SESSION_LABEL,
+    Trial=TRIAL_INDEX,
+    Time=TIMESTAMP,
+    LeftGazeX=LEFT_GAZE_X,
+    LeftGazeY=LEFT_GAZE_Y,
+    #LeftVelocityX=LEFT_VELOCITY_X,
+    #LeftVelocityY=LEFT_VELOCITY_Y,
+    RightGazeX=RIGHT_GAZE_X,
+    RightGazeY=RIGHT_GAZE_Y,
+    #RightVelocityX=RIGHT_VELOCITY_X,
+    #RightVelocityY=RIGHT_VELOCITY_Y,
+    LeftPupilSize=LEFT_PUPIL_SIZE,
+    RightPupilSize=RIGHT_PUPIL_SIZE,
+    subject = subject
+    ) 
+
+Fixations <- Raw_Fixations %>% 
+  select(
+    ParticipantID=RECORDING_SESSION_LABEL,
+    Trial=TRIAL_INDEX,
+    FixationNo=CURRENT_FIX_INDEX,
+    StartTime=CURRENT_FIX_START,
+    EndTime=CURRENT_FIX_END,
+    Duration=CURRENT_FIX_DURATION,
+    PositionX=CURRENT_FIX_X,
+    PositionY=CURRENT_FIX_Y,
+    PupilSize=CURRENT_FIX_PUPIL,
+    EyeUsed=EYE_USED,
+    subject
+    ) 
+
+Saccades <- Raw_Saccades %>%
+  select(
+    ParticipantID=RECORDING_SESSION_LABEL,
+    Trial=TRIAL_INDEX,
+    SaccadeNo=CURRENT_SAC_INDEX,
+    StartTime=CURRENT_SAC_START_TIME,
+    EndTime=CURRENT_SAC_END_TIME,
+    Duration=CURRENT_SAC_DURATION,
+    StartX=CURRENT_SAC_START_X,
+    StartY=CURRENT_SAC_START_Y,
+    EndX=CURRENT_SAC_END_X,
+    EndY=CURRENT_SAC_END_Y,
+    PeakVelocity=CURRENT_SAC_PEAK_VELOCITY,
+    MeanVelocity=CURRENT_SAC_AVG_VELOCITY,
+    Blink=CURRENT_SAC_CONTAINS_BLINK,
+    Direction=CURRENT_SAC_DIRECTION,
+    Amplitude=CURRENT_SAC_AMPLITUDE,
+    EyeUsed=EYE_USED,
+    subject)
+
+#Change the ',' to '.'
+Samples$RightGazeY <- gsub(",", '.', Samples$RightGazeY, fixed = T)
+Samples$RightGazeX <- gsub(",", '.', Samples$RightGazeX, fixed = T)
+#Samples$RightVelocityY <- gsub(",", '.', Samples$RightVelocityY, fixed = T)
+#Samples$RightVelocityX <- gsub(",", '.', Samples$RightVelocityX, fixed = T)
+Samples$LeftGazeY <- gsub(",", '.', Samples$LeftGazeY, fixed = T)
+Samples$LeftGazeX <- gsub(",", '.', Samples$LeftGazeX, fixed = T)
+#Samples$LeftVelocityX <- gsub(",", '.', Samples$LeftVelocityX, fixed = T)
+#Samples$LeftVelocityY <- gsub(",", '.', Samples$LeftVelocityY, fixed = T)
+Samples$RightPupilSize <- gsub(",", '.', Samples$RightPupilSize, fixed = T)
+Samples$LeftPupilSize <- gsub(",", '.', Samples$LeftPupilSize, fixed = T)
+
+Fixations$PositionX <- gsub(",", '.', Fixations$PositionX, fixed = T)
+Fixations$PositionY <- gsub(",", '.', Fixations$PositionY, fixed = T)
+
+Saccades$StartX <- gsub(",", '.', Saccades$StartX, fixed = T)
+Saccades$StartY <- gsub(",", '.', Saccades$StartY, fixed = T)
+Saccades$EndX <- gsub(",", '.', Saccades$EndX, fixed = T)
+Saccades$EndY <- gsub(",", '.', Saccades$EndY, fixed = T)
+Saccades$PeakVelocity <- gsub(",", '.', Saccades$PeakVelocity, fixed = T)
+Saccades$MeanVelocity <- gsub(",", '.', Saccades$MeanVelocity, fixed = T)
+Saccades$Amplitude <- gsub(",", '.', Saccades$Amplitude, fixed = T)
+
+```
+
+
+##Fix the extra 0's
+```{r}
+Samples <- Samples %>% 
+  group_by(subject, Trial) %>% 
+  mutate(Time = (Time-Time[1])/10000,
+         LeftGazeX = as.numeric(LeftGazeX)/100,
+         LeftGazeY = as.numeric(LeftGazeY)/100,
+         RightGazeX = as.numeric(RightGazeX)/100,
+         RightGazeY = as.numeric(RightGazeY)/100,
+         LeftPupilSize = as.numeric(LeftPupilSize)/100,
+         RightPupilSize = as.numeric(RightPupilSize)/100)
+
+str(Samples)
+
+Fixations <- Fixations %>% 
+  mutate(PositionX = as.numeric(PositionX)/100,
+         PositionY = as.numeric(PositionY)/100,
+         StartTime = as.numeric(StartTime)/100,
+         EndTime = as.numeric(EndTime)/100,
+         Duration = as.numeric(Duration)/100)
+         #PupilSize = as.numeric(PupilSize)/100)
+
+Saccades <- Saccades %>% 
+  mutate(StartX = as.numeric(StartX)/100,
+         StartY = as.numeric(StartY)/100,
+         EndX = as.numeric(EndX)/100,
+         EndY = as.numeric(EndY)/100,
+         StartTime = as.numeric(StartTime)/100,
+         EndTime = as.numeric(EndTime)/100,
+         Duration = as.numeric(Duration)/100,
+         PeakVelocity = as.numeric(PeakVelocity)/100,
+         MeanVelocity = as.numeric(gsub(";", ".", MeanVelocity)))
+
+```
+
+
+
+##Combine logfiles and eye-data
+```{r}
+Samples$subject <- as.factor(Samples$subject)
+participants$subject <- as.factor(participants$subject)
+
+#delete every other data point for participant 50 (the sample rate was 1000 hz instead of 500 hz)
+t <- filter(Samples, subject == '50') 
+
+t <- t %>%
+  group_by(subject, Trial) %>%
+  mutate(.counter = seq(1:n())) %>%
+  filter((.counter %% 2) == 0)
+
+Samples_t <- filter(Samples, subject != "50")
+
+Samples_new <- rbind(Samples_t, t)
+
+#combine the data'
+Samples_all <- merge(Samples_new, participants, by = c("Trial", "subject"))
+
+
+Samples_all$X1 <- NULL
+
+
+```
+
+##Save the dataframes
+```{r}
+write_csv(Samples_all, "Samples_all.csv")
+
+#Samples_test <- read_csv("Samples_all.csv")
+
+Samples_test <- read_csv("Samples_all.csv", col_types = cols(
+ParticipantID = col_character(),
+subject = col_character(),
+Trial = col_character(),
+gender = col_character(),
+age = col_character(),
+occular_dominance = col_character(),
+actor_gender = col_character(),
+word = col_character(),
+guess = col_character(),
+accuracy = col_factor(),
+video = col_character(),
+communication_style = col_character(),
+video_direction = col_character(),
+Time = col_double(),
+LeftGazeX = col_number(),
+LeftGazeY = col_number(),
+LeftPupilSize = col_number(),
+RightGazeX = col_number(),
+RightGazeY = col_number(),
+RightPupilSize = col_number()))  %>% 
+  mutate(RightGazeY = 1051-RightGazeY, LeftGazeY = 1051-LeftGazeY) #turn the y-axis around, so it becomes accurate
+
+
+
+```
+
+
+###Create combined colums for left/right eyes  ---- Virker ikke så længe venstre øje ikke er numerisk
+```{r}
+#make one combined column for PupilSize
+Samples_test$PupilSize <- ifelse(is.na(Samples_test$RightPupilSize), Samples_test$LeftPupilSize, Samples_test$RightPupilSize)
+
+#make one combined column for GazeX
+Samples_test$GazeX <- ifelse(is.na(Samples_test$RightGazeX), Samples_test$LeftGazeX, Samples_test$RightGazeX)
+
+#make one combined column for GazeY
+Samples_test$GazeY <- ifelse(is.na(Samples_test$RightGazeY), Samples_test$LeftGazeY, Samples_test$RightGazeY)
+
+```
+
+
+### Invert the x-axis for columns were Kasper uses the left hand
+```{r}
+venstre <- subset(Samples_test, word == 'vink' & communication_style == 'mime')
+
+#change x-axis for video = m_dir_vink_mime
+Samples_test$GazeX <- ifelse(Samples_test$word == 'vink' & Samples_test$communication_style == 'mime' & Samples_test$actor_gender == 'male', 1681-Samples_test$GazeX, Samples_test$GazeX)
+
+#change x-axis for video = m_dir_vink_combi
+Samples_test$GazeX <- ifelse(Samples_test$word == 'vink' & Samples_test$communication_style == 'combi' & Samples_test$actor_gender == 'male', 1681-Samples_test$GazeX, Samples_test$GazeX)
+
+
+```
+
+### Fix 'impossible' values from GazeX and GazeY
+```{r}
+Samples_test <- Samples_test %>% filter(GazeY >= 0 & GazeY <= 1050)
+Samples_test <- Samples_test %>% filter(GazeX >= 0 & GazeX <= 1680)
+
+
+```
+
+
+
+## Import fixation number and saccade number from processed data to samples
+```{r}
+## THIS WILL TAKE A LITTLE TIME
+
+for (t in seq(nrow(Fixations))){
+  StartTime=Fixations$StartTime[t]
+  EndTime=Fixations$EndTime[t]
+  ID=Fixations$subject[t]
+  Trial=Fixations$Trial[t]
+  FixN=Fixations$FixationNo[t]
+  Samples_test$FixationNo[Samples_test$Time >= StartTime  & Samples_test$Time <= EndTime & Samples_test$subject==ID & Samples_test$Trial==Trial]=FixN
+}
+
+for (t in seq(nrow(Saccades))){
+  StartTime=Saccades$StartTime[t]
+  EndTime=Saccades$EndTime[t]
+  ID=Saccades$subject[t]
+  Trial=Saccades$Trial[t]
+  SacN=Saccades$SaccadeNo[t]
+  Samples_test$SaccadeNo[Samples_test$Time >= StartTime  & Samples_test$Time <= EndTime & Samples_test$subject==ID & Samples_test$Trial==Trial]=SacN
+}
+
+write_csv(Samples_test, "Samples_merged.csv")
+```
+
+
+##Load data
+```{r}
+data <- read_csv("Samples_merged.csv", col_types = cols(
+ParticipantID = col_character(),
+subject = col_character(),
+Trial = col_character(),
+gender = col_character(),
+age = col_character(),
+occular_dominance = col_character(),
+actor_gender = col_character(),
+word = col_character(),
+guess = col_character(),
+accuracy = col_factor(),
+video = col_character(),
+communication_style = col_character(),
+video_direction = col_character(),
+Time = col_double(),
+LeftGazeX = col_number(),
+LeftGazeY = col_number(),
+LeftPupilSize = col_number(),
+RightGazeX = col_number(),
+RightGazeY = col_number(),
+RightPupilSize = col_number(),
+FixationNo = col_number(),
+SaccadeNo = col_number()))
+
+```
+
+
+# MAKE AOIs
+```{r}
+#####get mean for AOI-values for head-AOI, x-axis
+x_head_min <- c(745,752,755,749, 743, 753, 753, 716, 721, 731, 777, 741)
+x_head_max <- c(943, 915, 925,929, 936, 913, 906, 929, 923, 935, 954, 922)
+
+y_head_min <- c((1051-140), (1051-99), (1051-81), (1051-169), (1051-146), (1051-164), (1051-126), (1051-88), (1051-90), (1051-81), (1051-197), (1051-134))
+y_head_max <- c((1051-393), (1051-330), (1051-330), (1051-392), (1051-371), (1051-371), (1051-329), (1051-365), (1051-337), (1051-323), (1051-419), (1051-344))
+
+mean(x_head_min) #744
+mean(x_head_max) #928
+mean(y_head_min)-100 #592
+mean(y_head_max)-100 #824
+
+#AOI for head
+AOI1 <- c(744, 928, 592, 824)
+       # xmin xmax ymin ymax
+
+
+
+####get mean for AOI-values for hands-AOI
+x_head_min <- c(618, 603, 601, 614, 645, 613, 620, 606, 630)
+x_head_max <- c(929, 936, 913, 930, 954, 922, 1032, 1039, 1062)
+
+y_head_min <- c((1051-438), (1051-412), (1051-471), (1051-368), (1051-457), (1051-443), (1051-375), (1051-454), (1051-460))
+y_head_max <- c((1051-712), (1051-686), (1051-677), (1051-572), (1051-687), (1051-703), (1051-642), (1051-723), (1051-723))
+
+mean(x_head_min) #615
+mean(x_head_max) #931
+mean(y_head_min)-100 # 270
+mean(y_head_max)-100 #520
+
+#AOI2 (for hands)
+AOI2 <- c(616, 968, 270, 520)
+
+```
+
+### Add AOIs to dataframe
+```{r}
+data$AOI1 <- ifelse(data$GazeX >= AOI1[1] & data$GazeX <= AOI1[2] & data$GazeY >= AOI1[3] & data$GazeY <= AOI1[4], 1, 0)
+
+data$AOI2 <- ifelse(data$GazeX >= AOI2[1] & data$GazeX <= AOI2[2] & data$GazeY >= AOI2[3] & data$GazeY <= AOI2[4], 1, 0)
+
+#data$AOI3 <- ifelse(data$GazeX >= AOI3[1] & data$GazeX <= AOI3[2] & data$GazeY >= AOI3[3] & data$GazeY <= AOI3[4], 1, 0)
+
+#make sure that AOI-column is numeric (like AOI1, AOI2 and AOI3)
+str(data)
+
+#make colum where i can see if the gaze is within one of the AOIs and which one
+data <- data %>% 
+  mutate(AOI = case_when( #do the things in the AOI-column
+    AOI1 == 1 ~ 1, #if AOI1 = 1, then enter 1
+    AOI2 == 1 ~ 2,
+    #AOI3 == 1 ~ 3,
+    TRUE ~ NA_real_ # if none of the above, then enter NA
+  ))
+
+
+write_csv(data, "Data_AOI.csv")
+```
+
+###look at AOI
+```{r}
+##Subset for 'talk' and 'direct'
+AOI_test <- data %>% group_by(subject, Trial) %>%
+filter(communication_style == 'talk', video_direction == 'direct') %>%
+mutate(FixationX = mean(GazeX), FixationY = mean(GazeY))
+
+
+img <- readJPEG('f_dir_vink.jpg')  
+img <- grid::rasterGrob(img, width=unit(1, "npc"), height = unit(1,"npc"),
+                        interpolate = FALSE)
+
+##Plot with AOI and mean fixations
+ggplot(data=AOI_test, aes(FixationX, FixationY)) +
+  geom_point(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3) + 
+  theme(legend.position= "none") +
+  geom_rect(data = AOI_test, mapping=aes(xmin=744, xmax=928, ymin=550, ymax=824,fill=F), 
+                                 color = 'red', alpha = 0.02) +
+  xlim(0,1680) + ylim(0,1050) 
+  #annotation_custom(img, xmin = 0, xmax = 1680, ymin = 0, ymax = 1050)
+
+
+##Subset for 'mime' and 'direct'
+AOI_test1 <- data %>% group_by(subject, Trial) %>%
+filter(communication_style == 'mime', video_direction == 'direct') %>%
+mutate(FixationX = mean(GazeX), FixationY = mean(GazeY))
+
+##Plot with AOIs and mean fixations
+ggplot(data=AOI_test1, aes(FixationX, FixationY)) +
+  geom_point(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3) + 
+  theme(legend.position= "none") +
+  geom_rect(data = AOI_test1, mapping=aes(xmin=744, xmax=928, ymin=550, ymax=800,fill=F), 
+                                 color = 'red', alpha = 0.002) +
+  geom_rect(data = AOI_test1, mapping=aes(xmin=616, xmax=968, ymin=270, ymax=520,fill=F), 
+                                 color = 'blue', alpha = 0.002) +
+  xlim(0,1680) + ylim(0,1050) 
+  
+
+
+##Subset for 'talk' and 'observe'
+AOI_test2 <- data %>% group_by(subject, Trial) %>%
+filter(communication_style == 'talk', video_direction == 'observe') %>%
+mutate(FixationX = mean(GazeX), FixationY = mean(GazeY))
+
+##Plot with AOI and mean fixations
+ggplot(data=AOI_test2, aes(FixationX, FixationY)) +
+  geom_point(stat= "summary") + 
+  geom_errorbar(stat="summary", fun.data=mean_se, width=0.3) + 
+  theme(legend.position= "none") +
+  geom_rect(data = AOI_test2, mapping=aes(xmin=744, xmax=928, ymin=550, ymax=824,fill=F), 
+                                 color = 'red', alpha = 0.002) +
+  xlim(0,1680) + ylim(0,1050) 
+  
+
+
+```
+
+### Remove 1st fixation (at fixation cross)
+```{r}
+#load data
+data <- read_csv("Data_AOI.csv", col_types = cols(
+ParticipantID = col_character(),
+subject = col_character(),
+Trial = col_character(),
+gender = col_character(),
+age = col_character(),
+occular_dominance = col_character(),
+actor_gender = col_character(),
+word = col_character(),
+guess = col_character(),
+accuracy = col_factor(),
+video = col_character(),
+communication_style = col_character(),
+video_direction = col_character(),
+Time = col_double(),
+LeftGazeX = col_number(),
+LeftGazeY = col_number(),
+LeftPupilSize = col_number(),
+RightGazeX = col_number(),
+RightGazeY = col_number(),
+RightPupilSize = col_number(),
+FixationNo = col_number(),
+SaccadeNo = col_number()))
+
+
+#remove all rows where GazeX is NA
+data_new <- data[!is.na(data$GazeX), ]
+
+#remove all rows where FixationNo is 1
+data_new <- data_new %>% filter(., is.na(FixationNo) | FixationNo > 1)
+
+
+write_csv(data_new, "Data_final.csv")
+```
+
+##### Last cleaning
+```{r}
+#remove all rows where AOI is NA
+data_new <- data_new[!is.na(data_new$AOI), ]
+
+#remove unused columns
+data_new$ParticipantID <- NULL
+data_new$video <- NULL
+data_new$LeftGazeX <- NULL
+data_new$LeftGazeY <- NULL
+data_new$RightGazeX <- NULL
+data_new$RightGazeY <- NULL
+data_new$LeftPupilSize <- NULL
+data_new$RightPupilSize <- NULL
+data_new$guess <- NULL
+data_new$word <- NULL
+data_new$AOI1 <- NULL
+data_new$AOI2 <- NULL
+
+#write csv
+write_csv(data_new, "data_very_clean.csv")
+```
+
+##### Downsample - so it's faster to run initial analyses
+```{r}
+data <- read_csv("data_very_clean.csv", col_types = cols(
+#ParticipantID = col_character(),
+subject = col_character(),
+Trial = col_character(),
+gender = col_character(),
+age = col_number(),
+occular_dominance = col_character(),
+actor_gender = col_character(),
+#word = col_character(),
+#guess = col_character(),
+accuracy = col_factor(),
+#video = col_character(),
+communication_style = col_character(),
+video_direction = col_character(),
+Time = col_double(),
+#LeftGazeX = col_number(),
+#LeftGazeY = col_number(),
+#LeftPupilSize = col_number(),
+#RightGazeX = col_number(),
+#RightGazeY = col_number(),
+#RightPupilSize = col_number(),
+FixationNo = col_number(),
+SaccadeNo = col_number(), 
+#AOI1 = col_factor(),
+#AOI2 = col_factor(),
+AOI = col_factor()))
+
+#keep every 8th data point
+data_8 <- data %>%
+  group_by(subject, Trial) %>%
+  mutate(.counter = seq(1:n())) %>%
+  filter((.counter %% 8) == 0)
+
+#delete every other data point
+data_2 <- data %>%
+  group_by(subject, Trial) %>%
+  mutate(.counter = seq(1:n())) %>%
+  filter((.counter %% 2) == 0)
+
+#Write csv
+write_csv(data_2, "data_2.csv")
+write_csv(data_8, "data_8.csv")
+```
+
+###### create data with only means for Pupil Size
+```{r}
+t <- data %>%
+group_by(subject, Trial) %>%
+summarize(PupilSize = mean(PupilSize),
+       video_direction = video_direction[1],
+       communication_style = communication_style[1],
+       actor_gender = actor_gender[1],
+       occular_dominance = occular_dominance[1])
+
+write_csv(t, "PupilSize_data.csv")
+```
+
+
+

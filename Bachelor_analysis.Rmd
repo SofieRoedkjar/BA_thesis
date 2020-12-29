@@ -1,0 +1,185 @@
+---
+title: "Bachelor_analysis"
+author: "Sofie Rødkjær Blendstrup"
+date: "6/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+library(tidyverse) 
+library(lme4)
+library(DHARMa) 
+library(jpeg)
+library(grid)
+library(ggpubr)
+library(ggrepel)
+library(kableExtra)
+library(lmerTest)
+library(readxl)
+library(data.table)
+library(brms)
+library(rstan)
+library(devtools)
+library(rstan)
+library(rethinking)
+library(optimx)
+library(emmeans)
+library(sjPlot)
+library(effects)
+library(boot)
+library(MuMIn)
+
+#set wd
+setwd("~/Til_Kaspers_computer/")
+
+#load data
+data <- read_csv("data_very_clean.csv", col_types = cols(
+#ParticipantID = col_character(),
+subject = col_character(),
+Trial = col_character(),
+gender = col_character(),
+age = col_number(),
+occular_dominance = col_character(),
+actor_gender = col_character(),
+#word = col_character(),
+#guess = col_character(),
+accuracy = col_factor(),
+#video = col_character(),
+communication_style = col_character(),
+video_direction = col_character(),
+Time = col_double(),
+#LeftGazeX = col_number(),
+#LeftGazeY = col_number(),
+#LeftPupilSize = col_number(),
+#RightGazeX = col_number(),
+#RightGazeY = col_number(),
+#RightPupilSize = col_number(),
+FixationNo = col_number(),
+SaccadeNo = col_number(), 
+#AOI1 = col_factor(),
+#AOI2 = col_factor(),
+AOI = col_factor()))
+
+str(data)
+
+data$occular_dominance <- as.factor(data$occular_dominance)
+data$communication_style <- as.factor(data$communication_style)
+data$video_direction <- as.factor(data$video_direction)
+data$actor_gender <- as.factor(data$actor_gender)
+
+data_pup <- read_csv("PupilSize_data.csv")
+
+```
+
+
+
+##### Information about participants
+```{r}
+# How many participants?
+unique(data$subject)
+length(unique(data$subject))
+
+#mean age og sd
+mean(data$age)
+sd(data$age)
+
+#number of women
+women <- data %>% subset(gender == "Kvinde") %>% group_by(subject)
+unique(women$subject)
+length(unique(women$subject))
+
+#number of men
+men <- data %>% subset(gender == "Mand") %>% group_by(subject)
+unique(men$subject)
+length(unique(men$subject))
+
+#number of participants with Right occular dominance
+right_dom <- data %>% subset(occular_dominance == "Højre") %>% group_by(subject)
+unique(right_dom$subject)
+length(unique(right_dom$subject))
+```
+
+
+
+## Models
+```{r}
+memory.limit()
+memory.limit(size = 60000) #allows R to use more of the computer memory, so it can run large files
+
+#baseline models
+base_AOI <- glmer(AOI ~ 1 + (1 | subject) + (1 | Trial), family = binomial(link = "logit"), data = data, 
+                  control = glmerControl(optimizer = "optimx", calc.derivs = FALSE, optCtrl = list(method = "nlminb", starttests = FALSE, kkt = FALSE),nAGQ=0))
+
+base_pup <- lmer(PupilSize ~ 1 + (1 | subject) +(1 | Trial), data = data_pup,
+                 control=lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+
+### AOI - with and without oculardominance
+AOI <- glmer(AOI ~  video_direction + communication_style + actor_gender + (1 + video_direction + communication_style + actor_gender | subject) + (1 | Trial), family = binomial(link = "logit"), data = data, 
+                  control = glmerControl(optimizer = "optimx", calc.derivs = FALSE, optCtrl = list(method = "nlminb", starttests = FALSE, kkt = FALSE),nAGQ=0))
+
+AOI_oc <- glmer(AOI ~ video_direction + communication_style + actor_gender + occular_dominance + (1 + video_direction + communication_style + actor_gender + occular_dominance | subject)+ (1 | Trial), family = binomial(link = "logit"), data = data, 
+                  control = glmerControl(optimizer = "optimx", calc.derivs = FALSE, optCtrl = list(method = "nlminb", starttests = FALSE, kkt = FALSE),nAGQ=0))
+
+###Pupilsize - with and without ocular dominance 
+pup <- lmer(PupilSize ~ video_direction + communication_style + actor_gender + (1  | subject)+ (1 | Trial),  data = data_pup,
+                 control=lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+
+pup_oc <- lmer(PupilSize ~ video_direction + communication_style + actor_gender + occular_dominance + (1  | subject)+ (1 | Trial), data = data_pup,
+                 control=lmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+
+
+```
+
+### summaries and comparisons
+```{r}
+hist(data$PupilSize)
+
+#see summary statistics
+summary(base_AOI)
+summary(base_pup)
+summary(AOI)
+summary(AOI_oc)
+summary(pup)
+summary(pup_oc)
+
+#compare models
+anova(base_AOI, AOI, AOI_oc, REML = FALSE)
+anova(base_pup, pup, pup_oc, REML = FALSE)
+
+#pairwise comparisons
+pairs(emmeans(AOI, "video_direction"))
+pairs(emmeans(AOI, "communication_style"))
+
+pairs(emmeans(pup, "video_direction"))
+
+# plot marginal effects
+plot(effects::allEffects(AOI))
+plot(effects::allEffects(pup))
+
+# r^2
+MuMIn::r.squaredGLMM(AOI)
+MuMIn::r.squaredGLMM(pup)
+
+
+#inv.logit for AOI
+#inv.logit(-1.59288) #0.1689791 for intercept
+#inv.logit(0.19301) #0.5481033 for observe
+#inv.logit(0.93979) #0.7190572 for mime
+#inv.logit(-2.08944) #0.1101274 for talk
+#inv.logit(0.26519) #0.5659117 for male
+
+#inv.logit((-1.59288+(-1.59288+0.19301))/2) #0.1829668 = 18.3% for observe AND direct at AOI1
+
+#inv.logit((-1.59288+(-1.59288+ 0.93979))/2) #0.245458 = 24.5% for mime AND combined at direct-AOI1
+
+#inv.logit((-1.59288+(-1.59288+ (-2.08944)))/2) #0.0667574 = 6.7% for talk AND combined at direct-AOI1
+
+#inv.logit((-1.59288+(-1.59288+ 0.26519))/2) #0.1884237 = 18.8% for male AND female at combined-direct-AOI1
+
+```
+
